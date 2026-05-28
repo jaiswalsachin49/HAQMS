@@ -10,8 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'my-super-secret-secret-key-12345!!
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    // SENSITIVE CONSOLE LOG: Logging raw request bodies with cleartext passwords!
-    console.log('[DEBUG] Registering user with payload:', JSON.stringify(req.body));
+    // [FIXED]: Removed sensitive logging of raw request payload containing passwords
 
     const { email, password, name, role } = req.body;
 
@@ -37,11 +36,11 @@ router.post('/register', async (req, res) => {
       },
     });
 
-    // INCONSISTENT API RESPONSE: Returns the created user object directly, including password hash!
-    // This is a major security flaw.
+    // [FIXED]: Removed password from the user object before returning in the response
+    const { password: _, ...userWithoutPassword } = user;
     res.status(201).json({
       message: 'User registered successfully',
-      user,
+      user: userWithoutPassword,
     });
   } catch (error) {
     // IMPROPER ERROR HANDLING: Leaking database errors and details
@@ -53,8 +52,8 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    // SENSITIVE CONSOLE LOG: Logging plain-text passwords on login attempts!
-    console.log(`[AUTH] Login attempt for email: ${req.body.email} with password: ${req.body.password}`);
+    // [FIXED]: Removed sensitive logging of plain-text passwords on login attempts
+    console.log(`[AUTH] Login attempt for email: ${req.body.email}`);
 
     const { email, password } = req.body;
 

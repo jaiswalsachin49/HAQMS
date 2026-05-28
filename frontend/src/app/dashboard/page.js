@@ -35,6 +35,13 @@ export default function Dashboard() {
   const [patientGender, setPatientGender] = useState('All');
   const [patientsPagination, setPatientsPagination] = useState({ page: 1, totalPages: 1 });
   
+  // [FIXED]: Added debounced state for search to prevent API spam on every keystroke
+  const [debouncedPatientSearch, setDebouncedPatientSearch] = useState('');
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedPatientSearch(patientSearch), 500);
+    return () => clearTimeout(handler);
+  }, [patientSearch]);
+
   // Registration Form
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -75,8 +82,8 @@ export default function Dashboard() {
   const fetchPatients = async (page = 1) => {
     setPatientsLoading(true);
     try {
-      // Inefficient memory pagination called from client
-      const res = await fetch(`${API_BASE_URL}/patients?page=${page}&limit=5&search=${patientSearch}&gender=${patientGender}`, {
+      // [FIXED]: Now relies on backend pagination/filtering using the debounced search value
+      const res = await fetch(`${API_BASE_URL}/patients?page=${page}&limit=5&search=${debouncedPatientSearch}&gender=${patientGender}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -95,12 +102,13 @@ export default function Dashboard() {
     }
   };
 
-  // Trigger Patient List Fetch (Every keystroke trigger re-renders parent! - Performance bug)
+  // [FIXED]: Replaced raw patientSearch with debouncedPatientSearch to prevent massive re-renders
+  // and API hammering on every single keystroke.
   useEffect(() => {
     if (user.role === 'RECEPTIONIST' || user.role === 'ADMIN') {
       fetchPatients(1);
     }
-  }, [patientSearch, patientGender]);
+  }, [debouncedPatientSearch, patientGender]);
 
   // Fetch Doctors for booking drop-down
   const fetchDoctorsDropdown = async () => {
@@ -889,12 +897,9 @@ export default function Dashboard() {
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 text-xs space-y-2">
                   <h4 className="font-bold text-slate-400 uppercase tracking-wider">Clinical Background Information</h4>
                   
-                  {/* FRONTEND CRASH BUG:
-                      Assuming medicalHistory is always populated. Accesses a method on a nullable property
-                      without optional chaining! If medicalHistory is null (which is the case for Batman, Clark Kent, etc.),
-                      this code throws: "Cannot read properties of null (reading 'toUpperCase')" and crashes the app! */}
+                  {/* [FIXED]: Added fallback to prevent app crash on null medicalHistory */}
                   <p className="text-slate-700 dark:text-slate-300 leading-5 text-sm font-semibold">
-                    {selectedPatientHistory.medicalHistory.toUpperCase()}
+                    {(selectedPatientHistory.medicalHistory || 'No medical history recorded').toUpperCase()}
                   </p>
                 </div>
 

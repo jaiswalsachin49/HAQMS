@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("RECEPTIONIST") // e.g. ADMIN, RECEPTIONIST, DOCTOR
+  createdAt DateTime @default(now())
+}
+
+model Patient {
+  id             String        @id @default(uuid())
+  name           String
+  email          String?       @unique
+  phoneNumber    String
+  age            Int
+  gender         String
+  medicalHistory String?
+  createdAt      DateTime      @default(now())
+  appointments   Appointment[]
+  queueTokens    QueueToken[]
+}
+
+model Doctor {
+  id              String        @id @default(uuid())
+  name            String
+  specialization  String
+  department      String
+  consultationFee Float
+  experience      Int
+  createdAt       DateTime      @default(now())
+  appointments    Appointment[]
+  queueTokens     QueueToken[]
+}
+
+model Appointment {
+  id              String   @id @default(uuid())
+  patientId       String
+  doctorId        String
+  appointmentDate DateTime
+  reason          String?
+  status          String   @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  createdAt       DateTime @default(now())
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  doctor      Doctor       @relation(fields: [doctorId], references: [id])
+  queueTokens QueueToken[]
+
+  @@unique([doctorId, appointmentDate])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([appointmentDate])
+}
+
+model QueueToken {
+  id            String   @id @default(uuid())
+  tokenNumber   Int
+  patientId     String
+  doctorId      String
+  appointmentId String?
+  status        String   @default("WAITING") // WAITING, CALLING, COMPLETED, SKIPPED
+  createdAt     DateTime @default(now())
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  doctor      Doctor       @relation(fields: [doctorId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([doctorId, createdAt])
+  @@index([status])
+}

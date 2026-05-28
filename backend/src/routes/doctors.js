@@ -13,31 +13,22 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { search, specialization } = req.query;
 
-    let query = 'SELECT * FROM "Doctor"';
-    const conditions = [];
-
+    // [FIXED]: Resolved SQL Injection vulnerability by converting raw SQL string concatenation
+    // to Prisma's parameterized ORM queries, which automatically sanitize inputs.
+    const where = {};
     if (search) {
-      // Direct string interpolation - VULNERABLE TO SQL INJECTION!
-      // Example exploit: search=House%' UNION SELECT id, email, password, name, role, '09:00', '17:00', 0, id FROM "User" --
-      conditions.push(`name ILIKE '%${search}%'`);
+      where.name = { contains: search, mode: 'insensitive' };
     }
-
     if (specialization && specialization !== 'All') {
-      conditions.push(`specialization = '${specialization}'`);
+      where.specialization = specialization;
     }
 
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
+    const doctors = await prisma.doctor.findMany({ where });
 
-    console.log(`[SQL-DEBUG] Executing Query: ${query}`);
-    const doctors = await prisma.$queryRawUnsafe(query);
-
-    // Inconsistent API formatting (directly sending array)
     res.json(doctors);
   } catch (error) {
-    // Leaks query syntax details to candidate/attacker
-    res.status(500).json({ error: 'Database execution failure', sqlMessage: error.message });
+    // [FIXED]: Removed sqlMessage to prevent leaking DB structure
+    res.status(500).json({ error: 'Database execution failure' });
   }
 });
 
@@ -48,24 +39,13 @@ router.get('/stats', authenticate, async (req, res) => {
   try {
     const start = Date.now();
 
-    // Independent database calls are run sequentially with await, stalling the event loop
-    const totalDoctors = await prisma.doctor.count();
-    
-    const surgeonsCount = await prisma.doctor.count({
-      where: { department: 'Surgery' },
-    });
-
-    const averageFee = await prisma.doctor.aggregate({
-      _avg: {
-        consultationFee: true,
-      },
-    });
-
-    const highestExperience = await prisma.doctor.aggregate({
-      _max: {
-        experience: true,
-      },
-    });
+    // [FIXED]: Wrapped independent aggregations in Promise.all for concurrent execution
+    const [totalDoctors, surgeonsCount, averageFee, highestExperience] = await Promise.all([
+      prisma.doctor.count(),
+      prisma.doctor.count({ where: { department: 'Surgery' } }),
+      prisma.doctor.aggregate({ _avg: { consultationFee: true } }),
+      prisma.doctor.aggregate({ _max: { experience: true } })
+    ]);
 
     const durationMs = Date.now() - start;
 
