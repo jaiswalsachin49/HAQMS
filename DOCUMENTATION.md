@@ -2,9 +2,9 @@
 
 **Candidate**: Sachin Jaiswal  
 **Date**: May 2026  
-**Repository**: [GitHub Link — Update this before submission]  
-**Live Frontend**: [Vercel Link — Update this before submission]  
-**Live Backend API**: [Render Link — Update this before submission]  
+**Repository**: [GitHub Repository](https://github.com/jaiswalsachin49/HAQMS.git)  
+**Live Frontend**: [Live Frontend](https://haqms-two-orpin.vercel.app/)  
+**Live Backend API**: [Render API](https://haqms-t4tu.onrender.com)  
 
 ---
 
