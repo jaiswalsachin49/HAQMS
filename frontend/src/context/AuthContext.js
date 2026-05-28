@@ -50,9 +50,9 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.error || 'Authentication failed');
       }
 
-      // Inconsistent API returns nested success format for login
-      const receivedToken = data.data.token;
-      const receivedUser = data.data.user;
+      // [FIXED]: Updated to match the standardized flat API response format
+      const receivedToken = data.token;
+      const receivedUser = data.user;
 
       // SECURITY ISSUE: Storing sensitive auth credentials directly in LocalStorage!
       localStorage.setItem('haqms_token', receivedToken);

@@ -14,9 +14,16 @@ router.post('/register', async (req, res) => {
 
     const { email, password, name, role } = req.body;
 
-    // MISSING VALIDATION: Does not check if email is valid format or if password is strong
+    // [FIXED]: Added email format and password strength validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -43,9 +50,9 @@ router.post('/register', async (req, res) => {
       user: userWithoutPassword,
     });
   } catch (error) {
-    // IMPROPER ERROR HANDLING: Leaking database errors and details
+    // [FIXED]: Removed database error leakage from response
     console.error('Registration error:', error);
-    res.status(500).json({ error: 'Server error during registration', databaseError: error.message });
+    res.status(500).json({ error: 'Server error during registration' });
   }
 });
 
@@ -78,23 +85,20 @@ router.post('/login', async (req, res) => {
       { expiresIn: '365d' }
     );
 
-    // INCONSISTENT API RESPONSE format: Returns a nested success payload
-    // Different from registration response style
+    // [FIXED]: Standardized API response format to match other endpoints
     res.json({
-      status: 'success',
-      data: {
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        },
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
       },
     });
   } catch (error) {
+    // [FIXED]: Removed errorStack leakage
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal Server Error', errorStack: error.stack });
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
