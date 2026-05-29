@@ -447,7 +447,8 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 | `backend/src/index.js` | Security | Secured global error handler |
 | `backend/prisma/schema.prisma` | Database | Added `userId` unique relation, `@@unique`, `@@index` constraints |
 | `backend/prisma/seed.js` | Database | Idempotent database seed using `upsert` and `userId` mapping |
-| `backend/package.json` | Config | Added automated seed script configuration |
+| `backend/package.json` | Config | Added automated seed script and robust `build` script with `--accept-data-loss` |
+| `package.json` | Config | Added root `build` and `build:backend` orchestration scripts for smooth Render deployments |
 | `frontend/src/app/queue/page.js` | Memory | Fixed `setInterval` leak, environment variable |
 | `frontend/src/app/dashboard/page.js` | React & Reliability | Debounced search, null crash fix, hook violation & lookup fixes, double check-in prevention |
 | `frontend/src/app/login/page.js` | Validation | Restored HTML5 email type, password length check |
