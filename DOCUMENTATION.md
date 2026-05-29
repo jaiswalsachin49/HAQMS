@@ -206,7 +206,9 @@ model Appointment {
 }
 ```
 
-**Architectural Reasoning**: Application-level uniqueness checks are inherently vulnerable to race conditions (TOCTOU — Time-of-Check to Time-of-Use). Database-level constraints are enforced atomically by PostgreSQL, making duplicate bookings structurally impossible regardless of request timing.
+**Architectural Reasoning**: Application-level exact-time checks are inherently vulnerable to race conditions (TOCTOU — Time-of-Check to Time-of-Use) and fail to catch near-duplicates. The system is now protected at two levels:
+1. **Application Layer**: A 30-minute time-slot window (`gte: windowStart, lte: windowEnd`) prevents near-duplicate bookings like `10:00:00` and `10:00:01` while providing a user-friendly error message.
+2. **Database Layer**: The `@@unique` constraint acts as the absolute last line of defense, enforced atomically by PostgreSQL, making exact duplicates structurally impossible regardless of concurrent request timing.
 
 ---
 
@@ -354,6 +356,16 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **File**: `frontend/src/app/login/page.js`
 - **Bug**: Email input used `type="text"` to bypass native browser validation.
 - **Fix**: Restored `type="email"` and added client-side password length checks.
+
+### Database Error Stack Trace Leaks
+- **Files**: `backend/src/routes/*.js`, `backend/src/middleware/auth.js`
+- **Bug**: Multiple endpoints leaked raw database stack traces, `error.message`, and JWT validation failure specifics to the client.
+- **Fix**: Stripped all `details: error.message` payloads from `500` and `401` responses, replacing them with generic, safe failure strings.
+
+### Missing Phone Number Validation
+- **File**: `backend/src/routes/patients.js`
+- **Bug**: Patient registration accepted random strings for the phone number field (e.g. "abc").
+- **Fix**: Implemented robust regex validation (`/^\+?[\d\s-]{10,15}$/`) to enforce valid international or local phone number formats.
 
 ---
 

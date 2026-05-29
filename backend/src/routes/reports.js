@@ -6,9 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // GET /api/reports/doctor-stats
-// Highly inefficient nested loop aggregate reporting for admin/receptionists dashboard
-// PERFORMANCE BUG: Performs multiple nested DB queries inside a loop for every doctor.
-// Runs sequentially, blocking/scaling terrible with doctors count.
+// [FIXED]: Resolved severe performance bottleneck by replacing sequential loop with Promise.all()
 router.get('/doctor-stats', authenticate, async (req, res) => {
   try {
     const start = Date.now();
@@ -53,7 +51,7 @@ router.get('/doctor-stats', authenticate, async (req, res) => {
       data: reportData,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate report', details: error.message });
+    res.status(500).json({ error: 'Failed to generate report' });
   }
 });
 

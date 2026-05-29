@@ -7,8 +7,7 @@ const prisma = new PrismaClient();
 
 // GET /api/doctors
 // Retrieve list of doctors with special search filtering
-// SECURITY BUG: SQL Injection vulnerability in the search parameter!
-// Uses queryRawUnsafe with string concatenation instead of parameterized inputs.
+// [FIXED]: Resolved SQL Injection vulnerability — replaced queryRawUnsafe with Prisma ORM.
 router.get('/', authenticate, async (req, res) => {
   try {
     const { search, specialization } = req.query;
@@ -34,7 +33,7 @@ router.get('/', authenticate, async (req, res) => {
 
 // GET /api/doctors/stats
 // Returns aggregation details about available doctors
-// PERFORMANCE BUG: Sequential async calls instead of Promise.all()
+// [FIXED]: Parallelized independent aggregations using Promise.all()
 router.get('/stats', authenticate, async (req, res) => {
   try {
     const start = Date.now();
@@ -59,11 +58,11 @@ router.get('/stats', authenticate, async (req, res) => {
       },
       debugInfo: {
         executionTimeMs: durationMs,
-        notes: 'Loaded sequentially for safety. Optimization needed.'
+        notes: 'Optimized with Promise.all() for concurrent execution.'
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to retrieve doctor stats' });
   }
 });
 
@@ -80,7 +79,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
     res.json(doctor);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to retrieve doctor details' });
   }
 });
 

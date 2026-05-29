@@ -45,9 +45,7 @@ router.get('/', authenticate, async (req, res) => {
 
 // POST /api/appointments
 // Book an appointment
-// DESIGN BUG: Duplicate-prone schema. No unique index blocks duplicate appointment bookings.
-// In this API, we have a half-hearted verification that is easily bypassed or logically flawed,
-// allowing multiple bookings for the exact same date and doctor.
+// [FIXED]: Added time-slot window duplicate check + schema-level @@unique constraint
 router.post('/', authenticate, async (req, res) => {
   try {
     const { patientId, doctorId, appointmentDate, reason } = req.body;
@@ -58,21 +56,23 @@ router.post('/', authenticate, async (req, res) => {
 
     const appDate = new Date(appointmentDate);
 
-    // Flawed duplicate check:
-    // It only checks if the exact millisecond matches. If the candidate books for "2026-05-25 10:00:00"
-    // and another for "2026-05-25 10:00:01", they are treated as unique!
-    // Junior dev logic: "Same time bookings will be blocked."
+    // [FIXED]: Check for existing bookings within a 30-minute window (not just exact millisecond)
+    // This prevents near-duplicate bookings like 10:00:00 and 10:00:01.
+    // The @@unique([doctorId, appointmentDate]) constraint in schema.prisma acts as the final safety net.
+    const windowStart = new Date(appDate.getTime() - 30 * 60 * 1000);
+    const windowEnd = new Date(appDate.getTime() + 30 * 60 * 1000);
+
     const existingBooking = await prisma.appointment.findFirst({
       where: {
         doctorId,
-        appointmentDate: appDate,
+        appointmentDate: { gte: windowStart, lte: windowEnd },
         status: { not: 'CANCELLED' },
       },
     });
 
     if (existingBooking) {
       return res.status(400).json({
-        error: 'Double booking blocked. Doctor already has an appointment at this exact millisecond.',
+        error: 'Double booking blocked. Doctor already has an appointment within this time slot.',
       });
     }
 

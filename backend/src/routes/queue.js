@@ -27,15 +27,13 @@ router.get('/', async (req, res) => {
 
     res.json(tokens);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve queue', details: error.message });
+    res.status(500).json({ error: 'Failed to retrieve queue' });
   }
 });
 
 // POST /api/queue/checkin
 // Generate a new queue token for a patient
-// CONCURRENCY/RACE CONDITION BUG: Token increment uses aggregate read followed by create.
-// Introduce a deliberate asynchronous delay (setTimeout) to force a wide race window
-// where concurrent check-ins assign the exact same token number.
+// [FIXED]: Resolved token generation race condition by using a Prisma database transaction.
 router.post('/checkin', authenticate, async (req, res) => {
   try {
     const { patientId, doctorId, appointmentId } = req.body;
@@ -84,7 +82,7 @@ router.post('/checkin', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Queue check-in error:', error);
-    res.status(500).json({ error: 'Check-in failed', details: error.message });
+    res.status(500).json({ error: 'Check-in failed' });
   }
 });
 
@@ -109,7 +107,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     res.json(updatedToken);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update queue token', details: error.message });
+    res.status(500).json({ error: 'Failed to update queue token' });
   }
 });
 

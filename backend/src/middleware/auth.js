@@ -19,8 +19,8 @@ const authenticate = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    // IMPROPER ERROR HANDLING: Leaks full error details including secret key mismatches to the client
-    return res.status(401).json({ error: 'Invalid token.', details: error.message });
+    // [FIXED]: Removed error.message to prevent leaking JWT verification specifics
+    return res.status(401).json({ error: 'Invalid token.' });
   }
 };
 
