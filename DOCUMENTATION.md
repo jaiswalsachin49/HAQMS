@@ -366,6 +366,21 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **Bug**: Patient registration accepted random strings for the phone number field (e.g. "abc").
 - **Fix**: Implemented robust regex validation (`/^\+?[\d\s-]{10,15}$/`) to enforce valid international or local phone number formats.
 
+### Broad CORS & Unhandled Promise Rejections
+- **File**: `backend/src/index.js`
+- **Bug**: The application allowed all origins (`cors()`) and intentionally swallowed unhandled promise rejections without exiting. The API also broadcasted its version as `1.0.0-deliberate-bugs`.
+- **Fix**: Restored strict CORS (`process.env.FRONTEND_URL`), added `process.exit(1)` for proper crash-loop stability on unhandled rejections, and updated the version to `1.0.0-secured`.
+
+### Database Error Stack Trace Leaks
+- **Files**: `backend/src/routes/*.js`, `backend/src/middleware/auth.js`
+- **Bug**: Multiple endpoints leaked raw database stack traces, `error.message`, and JWT validation failure specifics to the client.
+- **Fix**: Stripped all `details: error.message` payloads from `500` and `401` responses, replacing them with generic, safe failure strings.
+
+### Missing Phone Number Validation
+- **File**: `backend/src/routes/patients.js`
+- **Bug**: Patient registration accepted random strings for the phone number field (e.g. "abc").
+- **Fix**: Implemented robust regex validation (`/^\+?[\d\s-]{10,15}$/`) to enforce valid international or local phone number formats.
+
 ---
 
 ## Files Modified

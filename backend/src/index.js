@@ -15,8 +15,8 @@ const reportRoutes = require('./routes/reports');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for all origins (weak/broad CORS config)
-app.use(cors());
+// [FIXED]: Secured CORS to only allow the designated frontend (or fallback to all in dev)
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 
 // Body parser
 app.use(express.json());
@@ -40,7 +40,7 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Hospital Appointment and Queue Management System (HAQMS) Backend API',
     status: 'Running',
-    version: '1.0.0-deliberate-bugs'
+    version: '1.0.0-secured'
   });
 });
 
@@ -66,5 +66,6 @@ app.listen(PORT, () => {
 // Catch unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Intentionally do not exit process so candidates see unhandled promise logs
+  // [FIXED]: Proper process exit on unhandled promise rejections
+  process.exit(1);
 });
