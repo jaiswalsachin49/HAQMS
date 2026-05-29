@@ -444,7 +444,8 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 | `backend/src/routes/queue.js` | Concurrency & Integrity | Atomic token generation via `$transaction`, date filtering, check-in duplication prevention |
 | `backend/src/routes/reports.js` | Performance | Parallelized aggregations with `Promise.all` |
 | `backend/src/routes/patients.js` | Performance | Database-level pagination with `skip`/`take` |
-| `backend/src/index.js` | Security | Secured global error handler |
+| `backend/src/index.js` | Security + Healing | Secured global error handler; imported and triggered automated `db-healer` on boot |
+| `backend/src/db-healer.js` | Feature | **NEW** — Self-healing database module to deduplicate doctors and reassign appointments/tokens |
 | `backend/prisma/schema.prisma` | Database | Added `userId` unique relation, `@@unique`, `@@index` constraints |
 | `backend/prisma/seed.js` | Database | Idempotent database seed using `upsert` and `userId` mapping |
 | `backend/package.json` | Config | Added automated seed script and robust `build` script with `--accept-data-loss` |

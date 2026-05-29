@@ -11,6 +11,7 @@ const doctorRoutes = require('./routes/doctors');
 const appointmentRoutes = require('./routes/appointments');
 const queueRoutes = require('./routes/queue');
 const reportRoutes = require('./routes/reports');
+const healDatabase = require('./db-healer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,11 +57,14 @@ app.use((err, req, res, next) => {
 });
 
 // Listen on port
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`===================================================`);
   console.log(`   HAQMS BACKEND SERVER IS RUNNING ON PORT ${PORT}`);
   console.log(`   ENVIRONMENT: ${process.env.NODE_ENV}`);
   console.log(`===================================================`);
+  
+  // Run database self-healing diagnostics
+  await healDatabase();
 });
 
 // Catch unhandled rejections
