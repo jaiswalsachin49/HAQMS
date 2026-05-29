@@ -371,6 +371,16 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **Bug**: The application allowed all origins (`cors()`) and intentionally swallowed unhandled promise rejections without exiting. The API also broadcasted its version as `1.0.0-deliberate-bugs`.
 - **Fix**: Restored strict CORS (`process.env.FRONTEND_URL`), added `process.exit(1)` for proper crash-loop stability on unhandled rejections, and updated the version to `1.0.0-secured`.
 
+### Broken Doctor Dashboard Linking
+- **File**: `frontend/src/app/dashboard/page.js`
+- **Bug**: The Doctor dashboard tried to fetch appointments using `d.userId === user.id`. However, the `Doctor` schema does not contain a `userId` foreign key, causing the lookup to fail silently and render empty tabs for doctors.
+- **Fix**: Updated the lookup to match by name (`d.name === user?.name`), restoring visibility of appointments and queue for the logged-in doctor.
+
+### React Rules of Hooks Violation on Logout
+- **File**: `frontend/src/app/dashboard/page.js`
+- **Bug**: Clicking "Logout" caused Next.js to crash with a "Rendered fewer hooks than expected" error because an early return (`if (!user) return null`) was placed *before* other React hooks (`useState`, `useEffect`).
+- **Fix**: Moved the early return below all hooks and implemented optional chaining (`user?.role`) to gracefully handle null states during unmount.
+
 ### Database Error Stack Trace Leaks
 - **Files**: `backend/src/routes/*.js`, `backend/src/middleware/auth.js`
 - **Bug**: Multiple endpoints leaked raw database stack traces, `error.message`, and JWT validation failure specifics to the client.
