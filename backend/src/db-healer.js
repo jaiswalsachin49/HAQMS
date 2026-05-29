@@ -43,22 +43,96 @@ async function healDatabase() {
         for (const duplicate of duplicates) {
           console.log(`[DB-HEALER] Merging duplicate doctor (ID: ${duplicate.id}) into canonical (ID: ${canonical.id})...`);
           
-          // Reassign appointments
+          // Reassign appointments one by one to handle collisions safely
           if (duplicate.appointments.length > 0) {
-            const apptUpdate = await prisma.appointment.updateMany({
-              where: { doctorId: duplicate.id },
-              data: { doctorId: canonical.id }
-            });
-            console.log(`[DB-HEALER] Reassigned ${apptUpdate.count} appointments.`);
+            for (const appt of duplicate.appointments) {
+              // Check if canonical doctor already has an appointment at this exact date/time
+              const collision = await prisma.appointment.findFirst({
+                where: {
+                  doctorId: canonical.id,
+                  appointmentDate: appt.appointmentDate
+                }
+              });
+
+              if (collision) {
+                console.log(`[DB-HEALER] Collision found for appointment at ${appt.appointmentDate}. Consolidating associated queue tokens...`);
+                
+                // Reassign queue tokens from the duplicate appointment to the collision appointment
+                const duplicateTokens = await prisma.queueToken.findMany({
+                  where: { appointmentId: appt.id }
+                });
+
+                for (const token of duplicateTokens) {
+                  // Check if the collision appointment already has a queue token for this tokenNumber
+                  const tokenCollision = await prisma.queueToken.findFirst({
+                    where: {
+                      appointmentId: collision.id,
+                      tokenNumber: token.tokenNumber
+                    }
+                  });
+
+                  if (tokenCollision) {
+                    // Redundant token, delete it
+                    await prisma.queueToken.delete({ where: { id: token.id } });
+                  } else {
+                    // Reassign the token to the collision appointment and canonical doctor
+                    await prisma.queueToken.update({
+                      where: { id: token.id },
+                      data: {
+                        appointmentId: collision.id,
+                        doctorId: canonical.id
+                      }
+                    });
+                  }
+                }
+
+                // Delete the duplicate appointment since it's redundant
+                await prisma.appointment.delete({
+                  where: { id: appt.id }
+                });
+                console.log(`[DB-HEALER] Deleted redundant duplicate appointment: ${appt.id}`);
+              } else {
+                // No collision, safe to reassign to canonical doctor
+                await prisma.appointment.update({
+                  where: { id: appt.id },
+                  data: { doctorId: canonical.id }
+                });
+              }
+            }
           }
 
-          // Reassign queue tokens
-          if (duplicate.queueTokens.length > 0) {
-            const tokenUpdate = await prisma.queueToken.updateMany({
-              where: { doctorId: duplicate.id },
-              data: { doctorId: canonical.id }
+          // Reassign any remaining queue tokens that were not handled by appointment merging
+          const remainingTokens = await prisma.queueToken.findMany({
+            where: { doctorId: duplicate.id }
+          });
+
+          for (const token of remainingTokens) {
+            // Check if there is a collision for this tokenNumber under canonical doctor on the same day
+            const tokenDate = new Date(token.createdAt);
+            const startOfDay = new Date(tokenDate.setHours(0,0,0,0));
+            const endOfDay = new Date(tokenDate.setHours(23,59,59,999));
+
+            const tokenCollision = await prisma.queueToken.findFirst({
+              where: {
+                doctorId: canonical.id,
+                tokenNumber: token.tokenNumber,
+                createdAt: {
+                  gte: startOfDay,
+                  lte: endOfDay
+                }
+              }
             });
-            console.log(`[DB-HEALER] Reassigned ${tokenUpdate.count} queue tokens.`);
+
+            if (tokenCollision) {
+              // Delete redundant queue token
+              await prisma.queueToken.delete({ where: { id: token.id } });
+            } else {
+              // Reassign
+              await prisma.queueToken.update({
+                where: { id: token.id },
+                data: { doctorId: canonical.id }
+              });
+            }
           }
 
           // Delete the duplicate doctor record
@@ -71,7 +145,6 @@ async function healDatabase() {
     }
 
     // 3. Make sure the canonical doctors are linked to the correct User account via userId
-    // Let's get all active doctors and all users with role 'DOCTOR'
     const activeDoctors = await prisma.doctor.findMany();
     const doctorUsers = await prisma.user.findMany({
       where: { role: 'DOCTOR' }
