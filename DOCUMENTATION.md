@@ -17,8 +17,7 @@
 5. [Challenge 4: Frontend Memory & React Optimization](#challenge-4-frontend-memory--react-optimization)
 6. [Challenge 5: Incomplete Feature Delivery](#challenge-5-incomplete-feature-delivery)
 7. [Bonus: Deep Audit Polish](#bonus-deep-audit-polish)
-8. [Deployment Guide](#deployment-guide)
-9. [Files Modified](#files-modified)
+8. [Files Modified](#files-modified)
 
 ---
 
@@ -366,23 +365,6 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **File**: `backend/src/routes/patients.js`
 - **Bug**: Patient registration accepted random strings for the phone number field (e.g. "abc").
 - **Fix**: Implemented robust regex validation (`/^\+?[\d\s-]{10,15}$/`) to enforce valid international or local phone number formats.
-
----
-
-## Deployment Guide
-
-### Backend (Render)
-1. Connect GitHub repository to Render.
-2. Set **Root Directory** to `backend`.
-3. Set **Build Command** to `npm install && npx prisma generate && npx prisma db push && node prisma/seed.js`.
-4. Set **Start Command** to `npm run start`.
-5. Add environment variable `DATABASE_URL` with your PostgreSQL connection string.
-
-### Frontend (Vercel)
-1. Connect GitHub repository to Vercel.
-2. Set **Root Directory** to `frontend`.
-3. Set **Framework Preset** to Next.js.
-4. Add environment variable `NEXT_PUBLIC_API_URL` set to your Render backend URL + `/api` (e.g., `https://your-app.onrender.com/api`).
 
 ---
 
