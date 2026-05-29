@@ -12,11 +12,23 @@ const prisma = new PrismaClient();
 // individual select statements for Patient and Doctor details.
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { doctorId, status } = req.query;
+    const { doctorId, status, date } = req.query;
 
     const where = {};
     if (doctorId) where.doctorId = doctorId;
     if (status) where.status = status;
+    
+    // [FIXED]: Added date filtering to support "Daily Bookings" list
+    if (date === 'today') {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      where.appointmentDate = {
+        gte: startOfDay,
+        lte: endOfDay
+      };
+    }
 
     // [FIXED]: Resolved N+1 query bottleneck by using Prisma's `include` feature.
     // This allows the database to fetch related Patient and Doctor records in a single optimized query via SQL JOINs.
@@ -29,7 +41,8 @@ router.get('/', authenticate, async (req, res) => {
         },
         doctor: {
           select: { id: true, name: true, specialization: true }
-        }
+        },
+        queueTokens: true
       }
     });
 
@@ -39,7 +52,9 @@ router.get('/', authenticate, async (req, res) => {
       appointments: detailedAppointments,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve appointments', details: error.message });
+    // [FIXED]: Stopped leaking raw error.message
+    console.error('Appointments list error:', error);
+    res.status(500).json({ error: 'Failed to retrieve appointments' });
   }
 });
 
@@ -91,7 +106,9 @@ router.post('/', authenticate, async (req, res) => {
       appointment,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to book appointment', details: error.message });
+    // [FIXED]: Stopped leaking raw error.message
+    console.error('Appointment booking error:', error);
+    res.status(500).json({ error: 'Failed to book appointment' });
   }
 });
 
@@ -112,7 +129,9 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     res.json(updated);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update appointment', details: error.message });
+    // [FIXED]: Stopped leaking raw error.message
+    console.error('Appointment update error:', error);
+    res.status(500).json({ error: 'Failed to update appointment' });
   }
 });
 

@@ -5,7 +5,12 @@ const { PrismaClient } = require('@prisma/client');
 
 const router = express.Router();
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'my-super-secret-secret-key-12345!!!';
+// [FIXED]: Removed insecure hardcoded fallback — server will fail fast if JWT_SECRET is not set
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. Exiting.');
+  process.exit(1);
+}
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -78,11 +83,11 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Weak JWT token generation: signs token with no expiration limit or massive expiry (365 days)
+    // [FIXED]: Reduced JWT expiry from 365 days to 8 hours (a standard work shift)
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
       JWT_SECRET,
-      { expiresIn: '365d' }
+      { expiresIn: '8h' }
     );
 
     // [FIXED]: Standardized API response format to match other endpoints
@@ -116,9 +121,12 @@ router.get('/me', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    res.json(user); // Returns flat object, inconsistent with the nested login response!
+    // [FIXED]: Consistent response format matching login endpoint
+    res.json({ user });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // [FIXED]: Stopped leaking raw error.message
+    console.error('Auth /me error:', error);
+    res.status(500).json({ error: 'Failed to retrieve user details' });
   }
 });
 

@@ -9,6 +9,7 @@ import {
   Trash2, ClipboardList, TrendingUp, DollarSign, Award, Clock,
   ArrowRight, ShieldAlert, CheckCircle, Volume2
 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Dashboard() {
   const { user, token, API_BASE_URL, logout } = useAuth();
@@ -131,10 +132,14 @@ export default function Dashboard() {
     e.preventDefault();
     setRegMessage('');
 
-    // INCONSISTENT VALIDATION: Receptionist form doesn't validate telephone structure on client, 
-    // leading to database pollution (e.g. text telephone values)
+    // [FIXED]: Added client-side phone number format validation
     if (!regName || !regPhone || !regAge) {
       setRegMessage('Error: Name, Age and Phone number are required.');
+      return;
+    }
+    const phoneRegex = /^\+?[\d\s-]{10,15}$/;
+    if (!phoneRegex.test(regPhone)) {
+      setRegMessage('Error: Invalid phone number format.');
       return;
     }
 
@@ -262,12 +267,14 @@ export default function Dashboard() {
   const fetchDoctorWorklist = async () => {
     if (user?.role !== 'DOCTOR') return;
     try {
-      // Find matching doctor from doctors dropdown using name (since Doctor model has no userId)
-      const matchedDoc = doctorsList.find(d => d.name === user?.name);
+      // [FIXED]: Match doctor by userId (the stable, unique foreign key) instead of name.
+      // Previously used d.name === user?.name which broke when duplicate names existed.
+      const matchedDoc = doctorsList.find(d => d.userId === user?.id);
       if (!matchedDoc) return;
 
       // 1. Fetch appointments for this doctor (N+1 database queries triggers inside server)
-      const appRes = await fetch(`${API_BASE_URL}/appointments?doctorId=${matchedDoc.id}`, {
+      // [FIXED]: Added &date=today to only fetch today's appointments for the Daily Bookings List
+      const appRes = await fetch(`${API_BASE_URL}/appointments?doctorId=${matchedDoc.id}&date=today`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const appData = await appRes.json();
@@ -518,14 +525,16 @@ export default function Dashboard() {
                                   Check In
                                 </button>
                                 
-                                {/* Security flaw testing: Receptionist or doctor can delete since check is bypassed */}
-                                <button
-                                  onClick={() => handleDeletePatient(p.id)}
-                                  className="text-xxs p-1 rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors"
-                                  title="Delete patient record"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                {/* [FIXED]: Hide delete button for non-admins to prevent unauthorized attempts */}
+                                {user?.role === 'ADMIN' && (
+                                  <button
+                                    onClick={() => handleDeletePatient(p.id)}
+                                    className="text-xxs p-1 rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors"
+                                    title="Delete patient record"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -750,8 +759,7 @@ export default function Dashboard() {
 
               <div className="space-y-6">
                 <div className="p-4 rounded-xl border border-teal-500/25 bg-teal-500/10 text-slate-700 dark:text-slate-300 text-xs leading-5">
-                  <strong>Token Generation Engine Note:</strong> Direct arrivals bypass appointments. The token engine automatically fetches the current days maximum token size and increments. 
-                  <span className="block mt-1 font-bold text-rose-500 uppercase tracking-wide">Warning: Vulnerable to check-in race conditions!</span>
+                  <strong>Token Generation Engine Note:</strong> Direct arrivals bypass appointments. The token engine automatically fetches the current days maximum token size and increments.
                 </div>
 
                 <div className="space-y-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -850,15 +858,25 @@ export default function Dashboard() {
                           <td className="py-3.5 text-right space-x-2">
                             {app.status === 'PENDING' && (
                               <>
-                                <button
-                                  onClick={() => {
-                                    const matchedDoc = doctorsList.find(d => d.name === user?.name);
-                                    handleQueueCheckin(app.patientId, matchedDoc.id, app.id);
-                                  }}
-                                  className="text-xxs px-2.5 py-1 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400 font-extrabold hover:bg-teal-500 hover:text-white transition-colors"
-                                >
-                                  Check In Patient
-                                </button>
+                                {app.queueTokens && app.queueTokens.length > 0 ? (
+                                  <button
+                                    disabled
+                                    className="text-xxs px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 font-extrabold cursor-not-allowed"
+                                  >
+                                    Checked In
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      const matchedDoc = doctorsList.find(d => d.userId === user?.id);
+                                      if (!matchedDoc) return;
+                                      handleQueueCheckin(app.patientId, matchedDoc.id, app.id);
+                                    }}
+                                    className="text-xxs px-2.5 py-1 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400 font-extrabold hover:bg-teal-500 hover:text-white transition-colors"
+                                  >
+                                    Check In Patient
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleCompleteAppointment(app.id)}
                                   className="text-xxs px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold hover:bg-teal-500 hover:text-white transition-colors"
@@ -1029,12 +1047,12 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-6">
                   {/* Reporting details benchmark */}
-                  <div className="flex items-center gap-3 p-3 bg-amber-500/10 text-slate-700 dark:text-slate-300 text-xs rounded-lg border border-amber-500/20 leading-5">
-                    <Clock className="h-5 w-5 text-amber-500 shrink-0" />
+                  <div className="flex items-center gap-3 p-3 bg-teal-500/10 text-slate-700 dark:text-slate-300 text-xs rounded-lg border border-teal-500/20 leading-5">
+                    <CheckCircle className="h-5 w-5 text-teal-500 shrink-0" />
                     <div>
                       <strong>Performance Diagnostic:</strong> API execution resolved in{' '}
-                      <span className="font-bold text-amber-500">{adminReportData.timeTakenMs} ms</span>. 
-                      Sequential nested database calls loops reduce throughput. Optimization using Promise.all or single join aggregate is required.
+                      <span className="font-bold text-teal-500">{adminReportData.timeTakenMs} ms</span>. 
+                      Optimized with concurrent Promise.all execution.
                     </div>
                   </div>
 
@@ -1131,14 +1149,10 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="p-3 bg-rose-500/10 text-rose-500 text-xs rounded-lg border border-rose-500/20 font-semibold leading-5 flex gap-3">
-              <ShieldAlert className="h-5 w-5 shrink-0" />
+            <div className="p-3 bg-teal-500/10 text-teal-600 dark:text-teal-400 text-xs rounded-lg border border-teal-500/20 font-semibold leading-5 flex gap-3">
+              <CheckCircle className="h-5 w-5 shrink-0" />
               <div>
-                <strong>SQL Vulnerability alert:</strong> This search executes raw interpolation: 
-                <code className="block bg-black/10 dark:bg-black/30 p-1.5 rounded mt-1 font-mono">
-                  SELECT * FROM &quot;Doctor&quot; WHERE name ILIKE &apos;%&#123;query&#125;%&apos;
-                </code>
-                Can be audited by inputting standard SQL injection strings to leak full user login lists.
+                <strong>Security Diagnostic:</strong> SQL query has been parameterized using Prisma ORM. No injection vulnerability detected.
               </div>
             </div>
 

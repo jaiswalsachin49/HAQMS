@@ -358,8 +358,13 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 
 ### Database Error Stack Trace Leaks
 - **Files**: `backend/src/routes/*.js`, `backend/src/middleware/auth.js`
-- **Bug**: Multiple endpoints leaked raw database stack traces, `error.message`, and JWT validation failure specifics to the client.
-- **Fix**: Stripped all `details: error.message` payloads from `500` and `401` responses, replacing them with generic, safe failure strings.
+- **Bug**: Multiple endpoints leaked raw database stack traces, `error.message`, and JWT validation failure specifics to the client via a `details` field or raw `error.message` output.
+- **Fix**: Stripped all `details: error.message` payloads from `500` and `401` responses across all route files (`auth.js`, `patients.js`, `appointments.js`, etc.), replacing them with generic, safe failure strings.
+
+### JWT Expiration and Hardcoded Secret Issues
+- **Files**: `backend/src/routes/auth.js`, `backend/src/middleware/auth.js`
+- **Bug**: JWT tokens were issued with a massive `365d` expiry, and the app utilized a hardcoded insecure fallback string for `JWT_SECRET` if the environment variable was missing.
+- **Fix**: Reduced JWT expiry to a secure `8h` shift window. Removed the hardcoded fallback; the backend now implements a fail-fast startup block if `JWT_SECRET` is unset.
 
 ### Missing Phone Number Validation
 - **File**: `backend/src/routes/patients.js`
@@ -371,10 +376,10 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **Bug**: The application allowed all origins (`cors()`) and intentionally swallowed unhandled promise rejections without exiting. The API also broadcasted its version as `1.0.0-deliberate-bugs`.
 - **Fix**: Restored strict CORS (`process.env.FRONTEND_URL`), added `process.exit(1)` for proper crash-loop stability on unhandled rejections, and updated the version to `1.0.0-secured`.
 
-### Broken Doctor Dashboard Linking
-- **File**: `frontend/src/app/dashboard/page.js`
-- **Bug**: The Doctor dashboard tried to fetch appointments using `d.userId === user.id`. However, the `Doctor` schema does not contain a `userId` foreign key, causing the lookup to fail silently and render empty tabs for doctors.
-- **Fix**: Updated the lookup to match by name (`d.name === user?.name`), restoring visibility of appointments and queue for the logged-in doctor.
+### Broken Doctor Dashboard Linking (Architectural Fix)
+- **File**: `frontend/src/app/dashboard/page.js`, `backend/prisma/schema.prisma`, `backend/prisma/seed.js`
+- **Bug**: The Doctor dashboard and database relied on fragile name-matching (`d.name === user?.name`) to link Doctor profiles to User accounts. This caused duplicate UI cards and crashes if multiple doctors had the same name or if the seed script ran multiple times on deployment.
+- **Fix**: Added a robust `userId` unique foreign key to the `Doctor` schema to link them explicitly to `User` accounts. Updated the database seed script to use idempotent `upsert` operations based on `userId`. Finally, updated the frontend to securely match using `d.userId === user?.id`, permanently resolving the duplicate rendering and fragile linking bugs.
 
 ### React Rules of Hooks Violation on Logout
 - **File**: `frontend/src/app/dashboard/page.js`
@@ -383,8 +388,8 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 
 ### Doctor Check-In Button Crash
 - **File**: `frontend/src/app/dashboard/page.js`
-- **Bug**: Clicking the check-in button on the doctor dashboard crashed the application due to an incorrect lookup `doctorsList.find(d => d.userId === user.id)`. The `Doctor` model does not contain a `userId` field.
-- **Fix**: Updated the lookup to match doctors by name (`d.name === user?.name`) in the `onClick` handler, resolving the crash.
+- **Bug**: Clicking the check-in button on the doctor dashboard crashed the application due to an incorrect lookup `doctorsList.find(d => d.userId === user.id)` because the `Doctor` model originally lacked a `userId` field.
+- **Fix**: Rather than hacking the frontend to use fragile name-matching, the `Doctor` schema was upgraded to include a `userId` relation. The frontend securely uses `d.userId === user?.id` to look up the correct doctor ID for the queue.
 
 ### Stale/Historical Queue Tokens Displayed
 - **File**: `backend/src/routes/queue.js`
@@ -401,6 +406,31 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **Bug**: An invalid arbitrary value syntax (`bg-radial-gradient(...)`) caused Next.js compilation warnings/errors and prevented the active calling token highlight from rendering properly.
 - **Fix**: Corrected the syntax to a valid Tailwind arbitrary value `bg-[radial-gradient(...)]` with proper underscore spacing.
 
+### Frontend HTML5 Validation Bypass
+- **File**: `frontend/src/app/login/page.js`, `frontend/src/app/dashboard/page.js`
+- **Bug**: Missing validation on key fields. The receptionist registration form didn't enforce valid phone numbers, allowing DB pollution.
+- **Fix**: Added client-side regex format checking for phone numbers on the dashboard registration form, alongside the existing login email/password checks.
+
+### Dashboard Stale Warnings & Privilege Escalation (UI)
+- **File**: `frontend/src/app/dashboard/page.js`
+- **Bug**: The delete patient button was visible to non-admin roles (receptionist/doctor) despite backend protections, leading to bad UX. Multiple sections had stale development/security warnings visible to users. A missing import (`Link`) caused crashes on the Doctor Worklist.
+- **Fix**: Hid the delete button conditionally `user?.role === 'ADMIN'`. Cleaned up all stale development warnings and corrected the `Link` import.
+
+### Async Params Crash on Diagnostic Page
+- **File**: `frontend/src/app/patients/[id]/history-records/page.js`
+- **Bug**: The Diagnostic Reports legacy page crashed with a "Failed to fetch patient history records" error. In Next.js 15+, dynamic route parameters (`params`) are passed as Promises to Client Components. Accessing `params.id` directly evaluates to `[object Promise]`, breaking the API request.
+- **Fix**: Used the new `React.use()` hook to synchronously unwrap the `params` promise (`const resolvedParams = use(params);`) before accessing the `id` property, restoring functionality to the page.
+
+### Daily Bookings vs Queue Desynchronization
+- **File**: `backend/src/routes/appointments.js`, `frontend/src/app/dashboard/page.js`
+- **Bug**: The "Scheduled Daily Bookings List" in the Doctor dashboard fetched *all* historical and future appointments because the API lacked date filtering, whereas the "Active Calling Queue" properly fetched only today's tokens. This created severe UI inconsistency.
+- **Fix**: Upgraded the `GET /api/appointments` endpoint to accept a `date=today` query parameter, filtering appointments to the strict midnight-to-midnight boundary of the current day. Updated the frontend fetch call to use this parameter.
+
+### Duplicate Queue Token Generation
+- **File**: `backend/src/routes/queue.js`, `frontend/src/app/dashboard/page.js`
+- **Bug**: Clicking "Check In Patient" multiple times for the same appointment generated infinite identical Queue Tokens for that patient because the system never checked if an appointment already had an active token.
+- **Fix**: Hardened the `POST /api/queue/checkin` endpoint to throw an error if an `appointmentId` already exists in the `QueueToken` table. Upgraded the frontend UI to parse `queueTokens` from the appointments list and instantly convert the "Check In Patient" button to a disabled, greyed-out "Checked In" badge once a token is generated.
+
 ---
 
 ## Files Modified
@@ -410,14 +440,17 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 | `backend/src/routes/auth.js` | Security | Removed password logging, added validation, standardized responses |
 | `backend/src/middleware/auth.js` | Security | Enforced JWT expiration, restored admin role check |
 | `backend/src/routes/doctors.js` | Security + Performance | Fixed SQL injection, parallelized aggregations |
-| `backend/src/routes/appointments.js` | Performance | Resolved N+1 query with Prisma `include` |
-| `backend/src/routes/queue.js` | Concurrency & Integrity | Atomic token generation via `$transaction`, date filtering |
+| `backend/src/routes/appointments.js` | Performance | Resolved N+1 query with Prisma `include`, added date filtering |
+| `backend/src/routes/queue.js` | Concurrency & Integrity | Atomic token generation via `$transaction`, date filtering, check-in duplication prevention |
 | `backend/src/routes/reports.js` | Performance | Parallelized aggregations with `Promise.all` |
 | `backend/src/routes/patients.js` | Performance | Database-level pagination with `skip`/`take` |
 | `backend/src/index.js` | Security | Secured global error handler |
-| `backend/prisma/schema.prisma` | Database | Added `@@unique`, `@@index` constraints |
+| `backend/prisma/schema.prisma` | Database | Added `userId` unique relation, `@@unique`, `@@index` constraints |
+| `backend/prisma/seed.js` | Database | Idempotent database seed using `upsert` and `userId` mapping |
+| `backend/package.json` | Config | Added automated seed script configuration |
 | `frontend/src/app/queue/page.js` | Memory | Fixed `setInterval` leak, environment variable |
-| `frontend/src/app/dashboard/page.js` | React & Reliability | Debounced search, null crash fix, hook violation & lookup fixes |
+| `frontend/src/app/dashboard/page.js` | React & Reliability | Debounced search, null crash fix, hook violation & lookup fixes, double check-in prevention |
 | `frontend/src/app/login/page.js` | Validation | Restored HTML5 email type, password length check |
+| `frontend/src/app/globals.css` | Styling | Restored dark/light mode background aesthetics for theme-aware system styling |
 | `frontend/src/context/AuthContext.js` | Config | Environment variable for API URL, flat response parsing |
-| `frontend/src/app/patients/[id]/history-records/page.js` | Feature | **NEW** — Built missing diagnostic reports page |
+| `frontend/src/app/patients/[id]/history-records/page.js` | Feature | **NEW** — Built missing diagnostic reports page unwrapping params |

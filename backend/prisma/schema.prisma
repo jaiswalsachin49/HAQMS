@@ -14,6 +14,7 @@ model User {
   name      String
   role      String   @default("RECEPTIONIST") // e.g. ADMIN, RECEPTIONIST, DOCTOR
   createdAt DateTime @default(now())
+  doctor    Doctor?
 }
 
 model Patient {
@@ -31,6 +32,8 @@ model Patient {
 
 model Doctor {
   id              String        @id @default(uuid())
+  userId          String?       @unique
+  user            User?         @relation(fields: [userId], references: [id])
   name            String
   specialization  String
   department      String

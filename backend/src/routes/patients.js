@@ -55,7 +55,9 @@ router.get('/', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch patients', details: error.message });
+    // [FIXED]: Stopped leaking raw error.message
+    console.error('Patient fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch patients' });
   }
 });
 
@@ -108,7 +110,9 @@ router.post('/', authenticate, async (req, res) => {
 
     res.status(201).json(patient);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to register patient', details: error.message });
+    // [FIXED]: Stopped leaking raw error.message
+    console.error('Patient registration error:', error);
+    res.status(500).json({ error: 'Failed to register patient' });
   }
 });
 

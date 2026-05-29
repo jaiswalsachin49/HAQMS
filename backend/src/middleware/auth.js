@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'my-super-secret-secret-key-12345!!!';
+// [FIXED]: JWT_SECRET must be set via environment variable — no insecure fallback
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  process.exit(1);
+}
 
 // Authentication middleware
 const authenticate = (req, res, next) => {

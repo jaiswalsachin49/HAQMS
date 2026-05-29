@@ -52,6 +52,16 @@ router.post('/checkin', authenticate, async (req, res) => {
     // [FIXED]: Wrapped token calculation and insertion in a database transaction to prevent race conditions
     // Removed the artificial 350ms sleep which exacerbated the race condition.
     const newToken = await prisma.$transaction(async (tx) => {
+      // [FIXED]: Prevent duplicate tokens for the same appointment
+      if (appointmentId) {
+        const existingToken = await tx.queueToken.findFirst({
+          where: { appointmentId }
+        });
+        if (existingToken) {
+          throw new Error('Patient is already checked in for this appointment.');
+        }
+      }
+
       const maxTokenResult = await tx.queueToken.aggregate({
         where: {
           doctorId,
@@ -86,7 +96,9 @@ router.post('/checkin', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Queue check-in error:', error);
-    res.status(500).json({ error: 'Check-in failed' });
+    res.status(error.message.includes('already checked in') ? 400 : 500).json({ 
+      error: error.message || 'Check-in failed' 
+    });
   }
 });
 

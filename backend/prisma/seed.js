@@ -8,7 +8,7 @@ async function main() {
 
   const password = await bcrypt.hash('password123', 10);
 
-  // 1. Seed Users
+  // 1. Seed Users (idempotent via upsert)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@haqms.com' },
     update: {},
@@ -31,7 +31,7 @@ async function main() {
     },
   });
 
-  const doctorUser = await prisma.user.upsert({
+  const doctorUser1 = await prisma.user.upsert({
     where: { email: 'doctor1@haqms.com' },
     update: {},
     create: {
@@ -42,9 +42,31 @@ async function main() {
     },
   });
 
-  // 2. Seed Doctors
-  const doctor1 = await prisma.doctor.create({
-    data: {
+  const doctorUser2 = await prisma.user.upsert({
+    where: { email: 'doctor2@haqms.com' },
+    update: {},
+    create: {
+      email: 'doctor2@haqms.com',
+      password,
+      name: 'Dr. Stephen Strange',
+      role: 'DOCTOR',
+    },
+  });
+
+  // 2. Seed Doctors — idempotent via upsert on userId (unique constraint)
+  // This links each Doctor profile to its User account, preventing duplicates
+  // on repeated seed runs (e.g., on every deploy).
+  const doctor1 = await prisma.doctor.upsert({
+    where: { userId: doctorUser1.id },
+    update: {
+      name: 'Dr. Gregory House',
+      specialization: 'Diagnostic Medicine',
+      department: 'Diagnostics',
+      consultationFee: 500,
+      experience: 15,
+    },
+    create: {
+      userId: doctorUser1.id,
       name: 'Dr. Gregory House',
       specialization: 'Diagnostic Medicine',
       department: 'Diagnostics',
@@ -53,8 +75,17 @@ async function main() {
     },
   });
 
-  const doctor2 = await prisma.doctor.create({
-    data: {
+  const doctor2 = await prisma.doctor.upsert({
+    where: { userId: doctorUser2.id },
+    update: {
+      name: 'Dr. Stephen Strange',
+      specialization: 'Neurosurgery',
+      department: 'Surgery',
+      consultationFee: 1200,
+      experience: 20,
+    },
+    create: {
+      userId: doctorUser2.id,
       name: 'Dr. Stephen Strange',
       specialization: 'Neurosurgery',
       department: 'Surgery',
@@ -63,7 +94,7 @@ async function main() {
     },
   });
 
-  // 3. Seed Patients (Include Bruce Wayne and Clark Kent with NULL medical history to intentionally cause crashes)
+  // 3. Seed Patients (idempotent via upsert)
   const patient1 = await prisma.patient.upsert({
     where: { email: 'clark@kent.com' },
     update: {},
@@ -73,7 +104,7 @@ async function main() {
       phoneNumber: '555-0101',
       age: 33,
       gender: 'Male',
-      medicalHistory: null, // Intentionally null to crash frontend
+      medicalHistory: null, // Intentionally null to test frontend null-safety
     },
   });
 
@@ -86,7 +117,7 @@ async function main() {
       phoneNumber: '555-0202',
       age: 40,
       gender: 'Male',
-      medicalHistory: null, // Intentionally null to crash frontend
+      medicalHistory: null, // Intentionally null to test frontend null-safety
     },
   });
 
@@ -103,50 +134,38 @@ async function main() {
     },
   });
 
-  // 4. Seed Appointments
-  const appointment1 = await prisma.appointment.create({
-    data: {
+  // 4. Seed Appointments (only if they don't already exist for this slot)
+  // Use upsert on the unique constraint [doctorId, appointmentDate]
+  const apptDate1 = new Date(new Date().setHours(10, 0, 0, 0));
+  const apptDate2 = new Date(new Date().setHours(11, 0, 0, 0));
+
+  const appointment1 = await prisma.appointment.upsert({
+    where: { doctorId_appointmentDate: { doctorId: doctor1.id, appointmentDate: apptDate1 } },
+    update: {},
+    create: {
       patientId: patient1.id,
       doctorId: doctor1.id,
-      appointmentDate: new Date(new Date().setHours(10, 0, 0, 0)),
+      appointmentDate: apptDate1,
       reason: 'Regular Checkup',
       status: 'PENDING',
     },
   });
-  
-  const appointment2 = await prisma.appointment.create({
-    data: {
+
+  const appointment2 = await prisma.appointment.upsert({
+    where: { doctorId_appointmentDate: { doctorId: doctor1.id, appointmentDate: apptDate2 } },
+    update: {},
+    create: {
       patientId: patient3.id,
       doctorId: doctor1.id,
-      appointmentDate: new Date(new Date().setHours(11, 0, 0, 0)),
+      appointmentDate: apptDate2,
       reason: 'Web shooters acting up',
       status: 'PENDING',
     },
   });
 
-  // 5. Seed Queue Tokens
-  await prisma.queueToken.create({
-    data: {
-      tokenNumber: 1,
-      patientId: patient1.id,
-      doctorId: doctor1.id,
-      appointmentId: appointment1.id,
-      status: 'WAITING',
-    },
-  });
-  
-  await prisma.queueToken.create({
-    data: {
-      tokenNumber: 2,
-      patientId: patient3.id,
-      doctorId: doctor1.id,
-      appointmentId: appointment2.id,
-      status: 'WAITING',
-    },
-  });
-
-
   console.log('Seeding finished.');
+  console.log(`  Users: admin, receptionist, doctor1 (${doctorUser1.email}), doctor2 (${doctorUser2.email})`);
+  console.log(`  Doctors: ${doctor1.name} (userId: ${doctor1.userId}), ${doctor2.name} (userId: ${doctor2.userId})`);
 }
 
 main()

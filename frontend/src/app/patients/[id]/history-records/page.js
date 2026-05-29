@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, ArrowLeft, Activity, Calendar } from 'lucide-react';
 import Navbar from '@/components/common/Navbar';
@@ -12,6 +12,9 @@ export default function PatientHistoryRecords({ params }) {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // In Next.js 15+, params is a Promise that must be unwrapped
+  const resolvedParams = use(params);
 
   useEffect(() => {
     if (!token) return;
@@ -19,7 +22,7 @@ export default function PatientHistoryRecords({ params }) {
     const fetchPatientData = async () => {
       try {
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-        const res = await fetch(`${API_BASE_URL}/patients/${params.id}`, {
+        const res = await fetch(`${API_BASE_URL}/patients/${resolvedParams.id}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -39,10 +42,10 @@ export default function PatientHistoryRecords({ params }) {
     };
 
     fetchPatientData();
-  }, [params.id, token]);
+  }, [resolvedParams.id, token]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
       
       <main className="flex-1 max-w-4xl w-full mx-auto p-6 sm:p-8">
