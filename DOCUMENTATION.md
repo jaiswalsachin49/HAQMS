@@ -381,15 +381,25 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 - **Bug**: Clicking "Logout" caused Next.js to crash with a "Rendered fewer hooks than expected" error because an early return (`if (!user) return null`) was placed *before* other React hooks (`useState`, `useEffect`).
 - **Fix**: Moved the early return below all hooks and implemented optional chaining (`user?.role`) to gracefully handle null states during unmount.
 
-### Database Error Stack Trace Leaks
-- **Files**: `backend/src/routes/*.js`, `backend/src/middleware/auth.js`
-- **Bug**: Multiple endpoints leaked raw database stack traces, `error.message`, and JWT validation failure specifics to the client.
-- **Fix**: Stripped all `details: error.message` payloads from `500` and `401` responses, replacing them with generic, safe failure strings.
+### Doctor Check-In Button Crash
+- **File**: `frontend/src/app/dashboard/page.js`
+- **Bug**: Clicking the check-in button on the doctor dashboard crashed the application due to an incorrect lookup `doctorsList.find(d => d.userId === user.id)`. The `Doctor` model does not contain a `userId` field.
+- **Fix**: Updated the lookup to match doctors by name (`d.name === user?.name`) in the `onClick` handler, resolving the crash.
 
-### Missing Phone Number Validation
-- **File**: `backend/src/routes/patients.js`
-- **Bug**: Patient registration accepted random strings for the phone number field (e.g. "abc").
-- **Fix**: Implemented robust regex validation (`/^\+?[\d\s-]{10,15}$/`) to enforce valid international or local phone number formats.
+### Stale/Historical Queue Tokens Displayed
+- **File**: `backend/src/routes/queue.js`
+- **Bug**: The `GET /api/queue` endpoint lacked a date filter, causing all historical tokens (e.g., from yesterday) to be returned to the live queue board and doctor dashboard.
+- **Fix**: Added a `createdAt: { gte: today }` filter so that the queue strictly tracks today's active tokens, matching the daily token numbering reset logic.
+
+### Live Queue and Doctor Dashboard Not Updating (Next.js Fetch Caching)
+- **File**: `frontend/src/app/queue/page.js`, `frontend/src/app/dashboard/page.js`
+- **Bug**: The polling `fetch` calls lacked cache-control directives. Next.js App Router aggressively cached the `GET /api/queue` requests, meaning the Live Queue and Doctor Dashboard never reflected real-time status updates (like a doctor clicking "Call Patient").
+- **Fix**: Added `{ cache: 'no-store' }` to the `fetch` options for queue endpoints to ensure fresh data is always retrieved.
+
+### Tailwind CSS Syntax Error on Live Queue
+- **File**: `frontend/src/app/queue/page.js`
+- **Bug**: An invalid arbitrary value syntax (`bg-radial-gradient(...)`) caused Next.js compilation warnings/errors and prevented the active calling token highlight from rendering properly.
+- **Fix**: Corrected the syntax to a valid Tailwind arbitrary value `bg-[radial-gradient(...)]` with proper underscore spacing.
 
 ---
 
@@ -401,13 +411,13 @@ Beyond the 5 required challenges, I identified and fixed additional edge-case vu
 | `backend/src/middleware/auth.js` | Security | Enforced JWT expiration, restored admin role check |
 | `backend/src/routes/doctors.js` | Security + Performance | Fixed SQL injection, parallelized aggregations |
 | `backend/src/routes/appointments.js` | Performance | Resolved N+1 query with Prisma `include` |
-| `backend/src/routes/queue.js` | Concurrency | Atomic token generation via `$transaction` |
+| `backend/src/routes/queue.js` | Concurrency & Integrity | Atomic token generation via `$transaction`, date filtering |
 | `backend/src/routes/reports.js` | Performance | Parallelized aggregations with `Promise.all` |
 | `backend/src/routes/patients.js` | Performance | Database-level pagination with `skip`/`take` |
 | `backend/src/index.js` | Security | Secured global error handler |
 | `backend/prisma/schema.prisma` | Database | Added `@@unique`, `@@index` constraints |
 | `frontend/src/app/queue/page.js` | Memory | Fixed `setInterval` leak, environment variable |
-| `frontend/src/app/dashboard/page.js` | React | Debounced search, null crash fix |
+| `frontend/src/app/dashboard/page.js` | React & Reliability | Debounced search, null crash fix, hook violation & lookup fixes |
 | `frontend/src/app/login/page.js` | Validation | Restored HTML5 email type, password length check |
 | `frontend/src/context/AuthContext.js` | Config | Environment variable for API URL, flat response parsing |
 | `frontend/src/app/patients/[id]/history-records/page.js` | Feature | **NEW** — Built missing diagnostic reports page |

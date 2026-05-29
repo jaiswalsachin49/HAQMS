@@ -277,6 +277,7 @@ export default function Dashboard() {
 
       // 2. Fetch queue list for this doctor today
       const queueRes = await fetch(`${API_BASE_URL}/queue?doctorId=${matchedDoc.id}`, {
+        cache: 'no-store',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const queueData = await queueRes.json();
@@ -851,7 +852,7 @@ export default function Dashboard() {
                               <>
                                 <button
                                   onClick={() => {
-                                    const matchedDoc = doctorsList.find(d => d.userId === user.id);
+                                    const matchedDoc = doctorsList.find(d => d.name === user?.name);
                                     handleQueueCheckin(app.patientId, matchedDoc.id, app.id);
                                   }}
                                   className="text-xxs px-2.5 py-1 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400 font-extrabold hover:bg-teal-500 hover:text-white transition-colors"

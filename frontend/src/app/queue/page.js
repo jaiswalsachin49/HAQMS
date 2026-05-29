@@ -19,7 +19,7 @@ export default function QueueMonitor() {
     try {
       // Insecure: Fetches queue without checking credentials (it's a public dashboard, which is fine, 
       // but it uses the hardcoded API domain)
-      const res = await fetch(`${API_BASE_URL}/queue`);
+      const res = await fetch(`${API_BASE_URL}/queue`, { cache: 'no-store' });
       if (!res.ok) {
         throw new Error('Failed to retrieve active token queue.');
       }
@@ -152,7 +152,7 @@ export default function QueueMonitor() {
                     {docInfo.calling ? (
                       <div className="bg-teal-500/10 dark:bg-teal-500/5 border border-teal-500/30 p-6 rounded-2xl text-center shadow-inner relative overflow-hidden group">
                         {/* Glowing radial accent */}
-                        <div className="absolute inset-0 bg-radial-gradient(circle, rgba(20,184,166,0.1) 0%, transparent 80%) opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(20,184,166,0.1)_0%,_transparent_80%)] opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <span className="block text-5xl font-black text-teal-600 dark:text-teal-400 tracking-wider animate-pulse">
                           #{docInfo.calling.tokenNumber}
                         </span>

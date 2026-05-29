@@ -11,8 +11,12 @@ const prisma = new PrismaClient();
 router.get('/', async (req, res) => {
   try {
     const { doctorId, status } = req.query;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const where = {};
+    const where = {
+      createdAt: { gte: today }
+    };
     if (doctorId) where.doctorId = doctorId;
     if (status) where.status = status;
 
